@@ -2,15 +2,15 @@ import sys
 import ctypes
 from ctypes import wintypes, Structure, POINTER, byref, c_float
 from PyQt6.QtWidgets import (
-    QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QApplication, QWidget, QVBoxLayout, QLabel, QPushButton,
     QSystemTrayIcon, QMenu
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QEvent
 from PyQt6.QtGui import QIcon, QPixmap, QPainter, QColor, QAction
 
-user32 = ctypes.windll.user32
-kernel32 = ctypes.windll.kernel32
-mag = ctypes.windll.LoadLibrary("Magnification.dll")
+user32 = ctypes.WinDLL("user32", use_last_error=True)
+kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+mag = ctypes.WinDLL("Magnification.dll", use_last_error=True)
 
 shcore = ctypes.windll.shcore
 try:
@@ -34,7 +34,7 @@ WS_EX_TOPMOST = 0x00000008
 WS_EX_LAYERED = 0x00080000
 WS_EX_TRANSPARENT = 0x00000020
 WS_EX_TOOLWINDOW = 0x00000080
-WS_POPUP = 0x80000000
+WS_POPUP = 0x80000000 & 0xFFFFFFFF
 
 CreateWindowExW = user32.CreateWindowExW
 CreateWindowExW.argtypes = [
@@ -63,8 +63,6 @@ def make_dim_matrix(level: float) -> MAGCOLOREFFECT:
 
 
 def make_tray_icon() -> QIcon:
-    """Ícone simples: círculo escuro com um 'D' — gerado em runtime,
-    sem depender de arquivo externo."""
     pix = QPixmap(64, 64)
     pix.fill(Qt.GlobalColor.transparent)
     p = QPainter(pix)
@@ -89,33 +87,18 @@ class ControlPanel(QWidget):
         self.host_hwnd = None
         self.tray = None
 
+        # Sem WindowStaysOnTopHint — se comporta como janela normal
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
             Qt.WindowType.Tool
         )
-        self.setFixedSize(170, 240)
+        self.setFixedSize(170, 210)
         self.setStyleSheet(
             "background: #121212; border: 2px solid #444; border-radius: 12px; "
             "color: white; font-family: sans-serif;"
         )
 
         layout = QVBoxLayout()
-
-        # Barra de topo: minimizar + fechar
-        top_bar = QHBoxLayout()
-        top_bar.setContentsMargins(0, 0, 0, 0)
-        btn_min = QPushButton("—")
-        btn_min.setFixedSize(24, 24)
-        btn_min.setStyleSheet(
-            "background: #2a2a2a; border: none; border-radius: 4px; "
-            "color: white; font-weight: bold;"
-        )
-        btn_min.setToolTip("Minimizar para a bandeja")
-        btn_min.clicked.connect(self.hide_to_tray)
-        top_bar.addStretch()
-        top_bar.addWidget(btn_min)
-        layout.addLayout(top_bar)
 
         self.label = QLabel(f"{int(self.opacity * 100)}%")
         self.label.setStyleSheet("font-size: 26px; border: none; font-weight: bold;")
@@ -167,7 +150,6 @@ class ControlPanel(QWidget):
 
         menu.addSeparator()
 
-        # Atalhos rápidos de nível
         for pct in (0, 25, 50, 75, 100):
             a = QAction(f"Dim {pct}%", self)
             a.triggered.connect(lambda checked=False, p=pct: self.set_level(p / 100))
@@ -184,7 +166,6 @@ class ControlPanel(QWidget):
         self.tray.show()
 
     def on_tray_activated(self, reason):
-        # Clique simples ou duplo no ícone -> alterna visibilidade
         if reason in (
             QSystemTrayIcon.ActivationReason.Trigger,
             QSystemTrayIcon.ActivationReason.DoubleClick,
@@ -246,7 +227,7 @@ class ControlPanel(QWidget):
 
     def reposition(self):
         screen = QApplication.primaryScreen().geometry()
-        self.move(screen.width() - 200, screen.height() - 300)
+        self.move(screen.width() - 200, screen.height() - 270)
 
     def apply_dim(self) -> bool:
         m = make_dim_matrix(self.opacity)
@@ -272,13 +253,12 @@ class ControlPanel(QWidget):
         QApplication.instance().quit()
 
     def closeEvent(self, event):
-        # Fechar (Alt+F4 etc.) -> esconde pra tray em vez de sair
         event.ignore()
         self.hide_to_tray()
 
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False)  # essencial pra ficar vivo na tray
+    app.setQuitOnLastWindowClosed(False)
     ctrl = ControlPanel()
     sys.exit(app.exec())
