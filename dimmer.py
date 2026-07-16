@@ -1,4 +1,5 @@
 import sys
+import time
 import ctypes
 from ctypes import wintypes, Structure, POINTER, byref, c_float
 from PyQt6.QtWidgets import (
@@ -86,6 +87,7 @@ class ControlPanel(QWidget):
         self.opacity = 0.5
         self.host_hwnd = None
         self.tray = None
+        self._last_deactivate = 0.0
 
         # Sem WindowStaysOnTopHint — se comporta como janela normal
         self.setWindowFlags(
@@ -170,7 +172,11 @@ class ControlPanel(QWidget):
             QSystemTrayIcon.ActivationReason.Trigger,
             QSystemTrayIcon.ActivationReason.DoubleClick,
         ):
-            if self.isVisible() and self.isActiveWindow():
+            was_foreground = (
+                self.isActiveWindow()
+                or (time.monotonic() - self._last_deactivate) < 0.25
+            )
+            if self.isVisible() and was_foreground:
                 self.hide_to_tray()
             else:
                 self.show_from_tray()
@@ -251,6 +257,11 @@ class ControlPanel(QWidget):
         if self.tray:
             self.tray.hide()
         QApplication.instance().quit()
+
+    def changeEvent(self, event):
+        if event.type() == QEvent.Type.ActivationChange and not self.isActiveWindow():
+            self._last_deactivate = time.monotonic()
+        super().changeEvent(event)
 
     def closeEvent(self, event):
         event.ignore()

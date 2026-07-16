@@ -1,0 +1,23 @@
+# Ambiente virtual
+.venv/
+venv/
+env/
+
+# PyInstaller
+build/
+dist/
+*.manifest
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Configuracoes de IDE
+.vscode/
+.idea/
+
+# Sistema operacional
+Thumbs.db
+Desktop.ini
+.DS_Store
