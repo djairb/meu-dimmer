@@ -170,7 +170,7 @@ class ControlPanel(QWidget):
             QSystemTrayIcon.ActivationReason.Trigger,
             QSystemTrayIcon.ActivationReason.DoubleClick,
         ):
-            if self.isVisible():
+            if self.isVisible() and self.isActiveWindow():
                 self.hide_to_tray()
             else:
                 self.show_from_tray()
